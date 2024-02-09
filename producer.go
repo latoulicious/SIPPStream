@@ -1,29 +1,47 @@
 package main
 
 import (
-	"context"
-	"fmt"
 	"log"
+	"strings"
+	"time"
 
 	"github.com/confluentinc/confluent-kafka-go/kafka"
-	"google.golang.org/genproto/googleapis/maps/fleetengine/delivery/v1"
 )
 
 func main() {
 	// Kafka Configuration
 
-	kafkaBrokers := []string{"localhost:9092"}
+	kafkaBrokers := []string{"kafka:9092"} // Use 'kafka' as the hostname
 	kafkaTopic := "my-logs-topic"
 
 	// Create Confluent Kafka Producee
 
-	producer, err := kafka.newProducer(&kafka.ConfigMap{
+	producer, err := kafka.NewProducer(&kafka.ConfigMap{
 		"bootstrap.servers": strings.Join(kafkaBrokers, "."),
 	})
+
+	// Introduce a short sleep
+	time.Sleep(5 * time.Second) // Sleep for 5 seconds
+
 	if err != nil {
 		log.Fatal("Failed to create producer: ", err)
 	}
 	defer producer.Close()
+
+	// After your producer initialization
+	for i := 0; i < 5; i++ {
+		_, err := producer.GetMetadata(nil, false, 1000) // 1-second timeout
+		if err == nil {
+			log.Println("Kafka is ready to accept connections")
+			break // Kafka is ready
+		}
+
+		if i == 4 {
+			log.Fatal("Failed to connect to Kafka after retries")
+		}
+
+		time.Sleep(1 * time.Second) // Retry interval
+	}
 
 	// Example log Message
 	message := &kafka.Message{
@@ -33,7 +51,7 @@ func main() {
 
 	// Send the Message
 	deliveryChan := make(chan kafka.Event)
-	err = producer.Producer(message, deliveryChan)
+	err = producer.Produce(message, deliveryChan) // Use 'Produce' method
 	if err != nil {
 		log.Fatal("Failed to send message:", err)
 	}
